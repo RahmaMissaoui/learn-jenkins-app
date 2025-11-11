@@ -48,8 +48,9 @@ pipeline {
                 stage('E2E') {
                     agent {
                         docker {
-                            image 'mcr.microsoft.com/playwright:next'
+                            image 'mcr.microsoft.com/playwright:focal'
                             reuseNode true
+                            args '-u 0:0'
                         }
                     }
 
