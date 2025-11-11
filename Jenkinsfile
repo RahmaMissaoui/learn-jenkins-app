@@ -47,7 +47,7 @@ pipeline {
                     steps {
                         sh '''
                             npm install serve
-                            node_modules/.bin/serve -s build &
+                            node_modules/.bin/serve -s build -l 4000 &
                             sleep 10
                             npx playwright test --reporter=html
                         '''
@@ -57,7 +57,7 @@ pipeline {
                             archiveArtifacts artifacts: 'playwright-report/**/*', allowEmptyArchive: true
                         }
                     }
-                }
+}
             }
         }
 
