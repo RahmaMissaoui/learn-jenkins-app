@@ -13,7 +13,6 @@ pipeline {
             steps {
                 sh 'npm ci --legacy-peer-deps'
                 sh 'npm run build'
-                sh 'chmod -R 777 test-results/ || true'
             }
         }
 
@@ -40,17 +39,16 @@ pipeline {
                 stage('E2E') {
                     agent {
                         docker {
-                            image 'mcr.microsoft.com/playwright:focal'
+                            image 'mcr.microsoft.com/playwright:v1.39.0-focal'
                             reuseNode true
                             args '-u root'
                         }
                     }
                     steps {
                         sh '''
-                            npm ci --legacy-peer-deps
                             npm install serve
                             node_modules/.bin/serve -s build &
-                            sleep 15
+                            sleep 10
                             npx playwright test --reporter=html
                         '''
                     }
