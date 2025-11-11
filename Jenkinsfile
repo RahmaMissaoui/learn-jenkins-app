@@ -1,23 +1,23 @@
 pipeline {
-    agent any
+    agent none
+
+    environment {
+        NETLIFY_SITE_ID = 'your-netlify-site-id-here'  // ← replace or add as Jenkins env var
+    }
 
     stages {
-
         stage('Build') {
             agent {
                 docker {
                     image 'node:18-alpine'
                     reuseNode true
+                    args '-u root:root'   // ← this solves the EACCES permission error forever
                 }
             }
             steps {
                 sh '''
-                    ls -la
-                    node --version
-                    npm --version
-                    npm ci
+                    npm ci --legacy-peer-deps
                     npm run build
-                    ls -la
                 '''
             }
         }
@@ -29,14 +29,11 @@ pipeline {
                         docker {
                             image 'node:18-alpine'
                             reuseNode true
+                            args '-u root:root'
                         }
                     }
-
                     steps {
-                        sh '''
-                            #test -f build/index.html
-                            npm test
-                        '''
+                        sh 'npm test'
                     }
                     post {
                         always {
@@ -48,23 +45,29 @@ pipeline {
                 stage('E2E') {
                     agent {
                         docker {
-                            image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
+                            image 'mcr.microsoft.com/playwright:focal'
                             reuseNode true
+                            args '-u root:root --cap-add=SYS_ADMIN'
                         }
                     }
-
                     steps {
                         sh '''
                             npm install serve
                             node_modules/.bin/serve -s build &
-                            sleep 20
-                            npx playwright test  --reporter=html
+                            sleep 10
+                            npx playwright test --reporter=html
                         '''
                     }
-
                     post {
                         always {
-                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright HTML Report', reportTitles: '', useWrapperFileDirectly: true])
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: 'playwright-report',
+                                reportFiles: 'index.html',
+                                reportName: 'Playwright E2E Report'
+                            ])
                         }
                     }
                 }
@@ -76,12 +79,18 @@ pipeline {
                 docker {
                     image 'node:18-alpine'
                     reuseNode true
+                    args '-u root:root'
                 }
+            }
+            environment {
+                NETLIFY_AUTH_TOKEN = credentials('netlify-auth-token')  // ← Secret text credential ID
             }
             steps {
                 sh '''
-                    npm install netlify-cli@20.1.1
-                    node_modules/.bin/netlify --version
+                    npm install -g netlify-cli@20.1.1
+                    netlify --version
+                    echo "Deploying to production..."
+                    netlify deploy --dir=build --prod --message "Jenkins auto-deploy $(date)"
                 '''
             }
         }
