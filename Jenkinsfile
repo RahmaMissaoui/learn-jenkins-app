@@ -1,7 +1,8 @@
 pipeline {
-    agent none
+    agent any
 
     stages {
+
         stage('Build') {
             agent {
                 docker {
@@ -11,9 +12,14 @@ pipeline {
                 }
             }
             steps {
-                sh 'npm ci --legacy-peer-deps'
-                sh 'npm run build'
-                sh 'chmod -R 777 test-results/'   // يحل مشكلة الكتابة في junit.xml
+                sh '''
+                    ls -la
+                    node --version
+                    npm --version
+                    npm ci
+                    npm run build
+                    ls -la
+                '''
             }
         }
 
@@ -27,12 +33,16 @@ pipeline {
                             args '-u root'
                         }
                     }
+
                     steps {
-                        sh 'npm test -- --ci --reporters=jest-junit --reporters=default'
+                        sh '''
+                            #test -f build/index.html
+                            npm test
+                        '''
                     }
                     post {
                         always {
-                            junit keepLongStdio: true, testResults: 'test-results/junit.xml'
+                            junit 'jest-results/junit.xml'
                         }
                     }
                 }
@@ -40,24 +50,24 @@ pipeline {
                 stage('E2E') {
                     agent {
                         docker {
-                            image 'mcr.microsoft.com/playwright:focal'
+                            image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
                             reuseNode true
-                            args '-u root --cap-add=SYS_ADMIN'
+                            args '-u root'
                         }
                     }
+
                     steps {
                         sh '''
-                            npm ci --legacy-peer-deps
                             npm install serve
-                            chmod -R 777 node_modules/
                             node_modules/.bin/serve -s build &
-                            sleep 15
-                            
+                            sleep 10
+                            npx playwright test  --reporter=html
                         '''
                     }
+
                     post {
                         always {
-                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: true, keepAll: true, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright E2E Report'])
+                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright HTML Report', reportTitles: '', useWrapperFileDirectly: true])
                         }
                     }
                 }
@@ -69,13 +79,12 @@ pipeline {
                 docker {
                     image 'node:18-alpine'
                     reuseNode true
-                    args '-u root'
                 }
             }
             steps {
                 sh '''
-                    npm install -g netlify-cli@20.1.1
-                    netlify --version
+                    npm install netlify-cli@20.1.1
+                    node_modules/.bin/netlify --version
                 '''
             }
         }
