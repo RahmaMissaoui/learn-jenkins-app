@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     stages {
-
         stage('Build') {
             agent {
                 docker {
@@ -33,10 +32,9 @@ pipeline {
                             args '-u root'
                         }
                     }
-
                     steps {
                         sh '''
-                            #test -f build/index.html
+                            # test -f build/index.html
                             npm test
                         '''
                     }
@@ -58,17 +56,24 @@ pipeline {
                     steps {
                         sh '''
                             npm install serve
+                            # Start server and get PID
                             node_modules/.bin/serve -s build -l 4000 &
-                            sleep 10
+                            SERVER_PID=$!
+                            # Wait for server to be ready
+                            npx wait-on http://localhost:4000 || sleep 15
+                            # Run tests
                             npx playwright test --reporter=html
+                            # Kill the server
+                            kill $SERVER_PID
                         '''
                     }
                     post {
                         always {
-                            archiveArtifacts artifacts: 'playwright-report/**/*', allowEmptyArchive: true
+                            archiveArtifacts 'playwright-report/**/*'
                         }
                     }
                 }
+            }  // This closes the parallel block
         }
 
         stage('Deploy') {
@@ -86,5 +91,5 @@ pipeline {
                 '''
             }
         }
-    }
+    }  
 }
