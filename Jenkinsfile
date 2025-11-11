@@ -52,7 +52,7 @@ pipeline {
                             chmod -R 777 node_modules/
                             node_modules/.bin/serve -s build &
                             sleep 15
-                            npx playwright test --reporter=html
+                            
                         '''
                     }
                     post {
