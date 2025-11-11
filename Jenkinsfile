@@ -1,7 +1,8 @@
 pipeline {
-    agent none
+    agent any
 
     stages {
+
         stage('Build') {
             agent {
                 docker {
@@ -11,8 +12,14 @@ pipeline {
                 }
             }
             steps {
-                sh 'npm ci --legacy-peer-deps'
-                sh 'npm run build'
+                sh '''
+                    ls -la
+                    node --version
+                    npm --version
+                    npm ci
+                    npm run build
+                    ls -la
+                '''
             }
         }
 
@@ -26,12 +33,16 @@ pipeline {
                             args '-u root'
                         }
                     }
+
                     steps {
-                        sh 'npm test'
+                        sh '''
+                            #test -f build/index.html
+                            npm test
+                        '''
                     }
                     post {
                         always {
-                            junit testResults: 'test-results/junit.xml', allowEmptyResults: true
+                            junit 'test-results/junit.xml'
                         }
                     }
                 }
@@ -41,20 +52,21 @@ pipeline {
                         docker {
                             image 'mcr.microsoft.com/playwright:v1.39.0-focal'
                             reuseNode true
-                            args '-u root'
                         }
                     }
+
                     steps {
                         sh '''
                             npm install serve
                             node_modules/.bin/serve -s build &
                             sleep 10
-                            npx playwright test --reporter=html
+                            npx playwright test  --reporter=html
                         '''
                     }
+
                     post {
                         always {
-                            archiveArtifacts artifacts: 'playwright-report/**/*', allowEmptyArchive: true
+                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright HTML Report', reportTitles: '', useWrapperFileDirectly: true])
                         }
                     }
                 }
@@ -71,8 +83,8 @@ pipeline {
             }
             steps {
                 sh '''
-                    npm install -g netlify-cli@20.1.1
-                    netlify --version
+                    npm install netlify-cli@20.1.1
+                    node_modules/.bin/netlify --version
                 '''
             }
         }
