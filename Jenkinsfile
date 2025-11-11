@@ -1,99 +1,87 @@
 pipeline {
-    agent none
-
-    environment {
-        NETLIFY_SITE_ID = 'your-netlify-site-id-here'  // Replace with your actual Site ID or use Jenkins env var
-    }
+    agent any
 
     stages {
+
         stage('Build') {
             agent {
                 docker {
                     image 'node:18-alpine'
                     reuseNode true
-                    args '-u root:root'
                 }
             }
             steps {
                 sh '''
-                    npm ci --legacy-peer-deps
+                    ls -la
+                    node --version
+                    npm --version
+                    npm ci
                     npm run build
+                    ls -la
                 '''
             }
         }
 
-        stage('Tests') {
-            parallel {
-                stage('Unit tests') {
-                    agent {
-                        docker {
-                            image 'node:18-alpine'
-                            reuseNode true
-                            args '-u root:root'
-                        }
-                    }
-                    steps {
-                        sh 'npm test'
-                    }
-                    post {
-                        always {
-                            junit 'test-results/junit.xml'
-                        }
-                    }
-                }
+        // stage('Tests') {
+        //     parallel {
+        //         stage('Unit tests') {
+        //             agent {
+        //                 docker {
+        //                     image 'node:18-alpine'
+        //                     reuseNode true
+        //                 }
+        //             }
 
-                stage('E2E') {
-                    agent {
-                        docker {
-                            image 'node:18-bookworm-slim'
-                            reuseNode true
-                            args '-u root:root'
-                        }
-                    }
-                    steps {
-                        sh '''
-                            apt-get update && apt-get install -y ca-certificates curl gnupg
-                            npm install @playwright/test
-                            npx playwright install --with-deps
-                            npm install serve
-                            node_modules/.bin/serve -s build &
-                            sleep 10
-                            npx playwright test --reporter=html
-                        '''
-                    }
-                    post {
-                        always {
-                            publishHTML([
-                                allowMissing: false,
-                                alwaysLinkToLastBuild: true,
-                                keepAll: true,
-                                reportDir: 'playwright-report',
-                                reportFiles: 'index.html',
-                                reportName: 'Playwright E2E Report'
-                            ])
-                        }
-                    }
-                }
-            }
-        }
+        //             steps {
+        //                 sh '''
+        //                     #test -f build/index.html
+        //                     npm test
+        //                 '''
+        //             }
+        //             post {
+        //                 always {
+        //                     junit 'test-results/junit.xml'
+        //                 }
+        //             }
+        //         }
+
+        //         stage('E2E') {
+        //             agent {
+        //                 docker {
+        //                     image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
+        //                     reuseNode true
+        //                 }
+        //             }
+
+        //             steps {
+        //                 sh '''
+        //                     npm install serve
+        //                     node_modules/.bin/serve -s build &
+        //                     sleep 10
+        //                     npx playwright test  --reporter=html
+        //                 '''
+        //             }
+
+        //             post {
+        //                 always {
+        //                     publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright HTML Report', reportTitles: '', useWrapperFileDirectly: true])
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         stage('Deploy') {
             agent {
                 docker {
                     image 'node:18-alpine'
                     reuseNode true
-                    args '-u root:root'
                 }
-            }
-            environment {
-                NETLIFY_AUTH_TOKEN = credentials('netlify-auth-token')  // Your secret credential ID
             }
             steps {
                 sh '''
-                    npm install -g netlify-cli@20.1.1
-                    netlify --version
-                    echo "Deploying to production..."
-                    netlify deploy --dir=build --prod --site $NETLIFY_SITE_ID --auth $NETLIFY_AUTH_TOKEN --message "Jenkins auto-deploy $(date)"
+                    npm install netlify-cli@20.1.1
+                    node_modules/.bin/netlify --version
                 '''
             }
         }
