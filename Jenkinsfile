@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     stages {
+
         stage('Build') {
             agent {
                 docker {
@@ -10,32 +11,63 @@ pipeline {
                 }
             }
             steps {
-                sh 'npm install'
-                sh 'npm run build'  // This was missing!
+                sh '''
+                    ls -la
+                    node --version
+                    npm --version
+                    npm ci
+                    npm run build
+                    ls -la
+                '''
             }
         }
 
-        stage('Test') {
-            agent {
-                docker {
-                    image 'node:18-alpine'
-                    reuseNode true
+        stage('Tests') {
+            parallel {
+                stage('Unit tests') {
+                    agent {
+                        docker {
+                            image 'node:18-alpine'
+                            reuseNode true
+                        }
+                    }
+
+                    steps {
+                        sh '''
+                            #test -f build/index.html
+                            npm test
+                        '''
+                    }
+                    post {
+                        always {
+                            junit 'test-results/junit.xml'
+                        }
+                    }
                 }
-            }
-            steps {
-                sh 'npx playwright install'  // Install browsers
-                sh '''
-                    npm install serve
-                    # Start server in background and get PID
-                    node_modules/.bin/serve -s build -p 3000 &
-                    SERVER_PID=$!
-                    # Wait for server to be ready
-                    npx wait-on http://localhost:3000
-                    # Run tests
-                    npx playwright test --reporter=html
-                    # Kill the server
-                    kill $SERVER_PID
-                '''
+
+                stage('E2E') {
+                    agent {
+                        docker {
+                            image 'mcr.microsoft.com/playwright:next'
+                            reuseNode true
+                        }
+                    }
+
+                    steps {
+                        sh '''
+                            npm install serve
+                            node_modules/.bin/serve -s build &
+                            sleep 10
+                            npx playwright test  --reporter=html
+                        '''
+                    }
+
+                    post {
+                        always {
+                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright HTML Report', reportTitles: '', useWrapperFileDirectly: true])
+                        }
+                    }
+                }
             }
         }
 
@@ -52,14 +84,6 @@ pipeline {
                     node_modules/.bin/netlify --version
                 '''
             }
-        }
-    }
-
-    post {
-        always {
-            // Make sure to archive the test results
-            junit 'test-results/**/*.xml'  // Updated path pattern
-            archiveArtifacts 'playwright-report/**/*'  // Archive HTML reports
         }
     }
 }
