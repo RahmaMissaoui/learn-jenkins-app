@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     stages {
+
         stage('Build') {
             agent {
                 docker {
@@ -32,9 +33,10 @@ pipeline {
                             args '-u root'
                         }
                     }
+
                     steps {
                         sh '''
-                            # test -f build/index.html
+                            #test -f build/index.html
                             npm test
                         '''
                     }
@@ -50,30 +52,26 @@ pipeline {
                         docker {
                             image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
                             reuseNode true
-                            args '-u root'          
+                            args '-u root'
                         }
                     }
+
                     steps {
                         sh '''
                             npm install serve
-                            # Start server and get PID
-                            node_modules/.bin/serve -s build -l 4000 &
-                            SERVER_PID=$!
-                            # Wait for server to be ready
-                            npx wait-on http://localhost:4000 || sleep 15
-                            # Run tests
-                            npx playwright test --reporter=html
-                            # Kill the server
-                            kill $SERVER_PID
+                            node_modules/.bin/serve -s build &
+                            sleep 10
+                            npx playwright test  --reporter=html
                         '''
                     }
+
                     post {
                         always {
-                            archiveArtifacts 'playwright-report/**/*'
+                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright HTML Report', reportTitles: '', useWrapperFileDirectly: true])
                         }
                     }
                 }
-            }  // This closes the parallel block
+            }
         }
 
         stage('Deploy') {
@@ -91,5 +89,5 @@ pipeline {
                 '''
             }
         }
-    }  
+    }
 }
